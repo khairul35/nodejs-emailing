@@ -19,7 +19,7 @@ app.post('/send-email-with-attachment', (req, res) => {
         from,
         to,
         subject,
-        text:
+        text,
         attachment,
     } = req.body;
 
