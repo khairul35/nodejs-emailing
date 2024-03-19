@@ -15,15 +15,16 @@ app.use(cors());
 // Endpoint to handle email sending request
 app.post('/send-email-with-attachment', (req, res) => {
     const {
+        transportOptions,
         from,
         to,
         subject,
         text:
-        attachments,
+        attachment,
     } = req.body;
 
     // Convert base64 string to a buffer
-    const attachmentBuffer = Buffer.from(attachmentBase64, 'base64');
+    const attachmentBuffer = Buffer.from(attachment, 'base64');
 
     // Create a transporter object using SMTP
     const transporter = nodemailer.createTransport(transportOptions);
@@ -32,8 +33,8 @@ app.post('/send-email-with-attachment', (req, res) => {
     const mailOptions = {
         from: from, // Sender's email address
         to: to, // Recipient's email address
-        subject: 'Test Email with Attachment', // Subject line
-        text: 'Hello, This is a test email with attachment.', // Plain text body
+        subject: subject, // Subject line
+        text: text, // Plain text body
         attachments: [
             {
                 filename: 'attachment.txt', // Name of the attachment
