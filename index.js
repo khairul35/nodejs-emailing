@@ -1,61 +1,80 @@
-// sendEmail.js
 const express = require('express');
 const nodemailer = require('nodemailer');
 const bodyParser = require('body-parser');
-const cors = require('cors'); // Import the cors middleware
+const cors = require('cors');
+const multer = require('multer');
+const fs = require('fs');
+const path = require('path');
 
 const app = express();
-const port = 3000; // Choose any port you prefer
+const port = 3001;
 
-// Middleware to parse JSON bodies
 app.use(bodyParser.json());
-// Enable CORS for all routes
 app.use(cors());
 
-// Endpoint to handle email sending request
-app.post('/send-email-with-attachment', (req, res) => {
-    const {
-        transportOptions,
-        from,
-        to,
-        subject,
-        text,
-        attachment,
-    } = req.body;
+const upload = multer();
 
-    // Convert base64 string to a buffer
-    const attachmentBuffer = Buffer.from(attachment, 'base64');
+app.post('/send-email-with-attachment', upload.single('attachment'), (req, res) => {
+    console.log('Received email request:', req.body);
+    const { transportOptions, from, to, subject, text } = req.body;
+    const attachment = req.file;
 
-    // Create a transporter object using SMTP
-    const transporter = nodemailer.createTransport(transportOptions);
+    const transporter = nodemailer.createTransport(JSON.parse(transportOptions));
 
-    // Create an email message
-    const mailOptions = {
-        from: from, // Sender's email address
-        to: to, // Recipient's email address
-        subject: subject, // Subject line
-        text: text, // Plain text body
-        attachments: [
-            {
-                filename: 'attachment.txt', // Name of the attachment
-                content: attachmentBuffer // Buffer of the attachment
-            }
-        ]
-    };
+    const uploadDir = path.join(__dirname, 'uploads');
+    if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir);
+    }
 
-    // Send email
-    transporter.sendMail(mailOptions, function(error, info) {
-        if (error) {
-            console.log('Error occurred:', error);
-            res.status(500).json({ error: 'Failed to send email' });
-        } else {
-            console.log('Email sent:', info.response);
-            res.status(200).json({ message: 'Email sent successfully' });
+    const savedFilePath = path.join(uploadDir, attachment.originalname);
+    
+    // Write file to disk
+    fs.writeFile(savedFilePath, attachment.buffer, (err) => {
+        if (err) {
+            console.error('Error writing file:', err);
+            res.status(500).json({ error: 'Failed to save attachment' });
+            return;
         }
+        
+        // Create an email message
+        const mailOptions = {
+            from: from,
+            to: to,
+            subject: subject,
+            // html: `<div>
+            //     test
+            //     <img src="${savedFilePath}" style="width: 300px; height: auto" />
+            // </div>`,
+            text: text,
+            attachments: [{
+                filename: attachment.originalname,
+                path: savedFilePath,
+                cid: 'imagename'
+          }],
+        };
+
+        // Send email
+        transporter.sendMail(mailOptions, function (error, info) {
+            if (error) {
+                console.log('Error occurred:', error);
+                res.status(500).json({ error: 'Failed to send email' });
+            } else {
+                console.log('Email sent:', info.response);
+                res.status(200).json({ message: 'Email sent successfully' });
+                
+                // Delete the temporary file after sending the email
+                fs.unlink(savedFilePath, (unlinkErr) => {
+                    if (unlinkErr) {
+                        console.error('Error deleting file:', unlinkErr);
+                    } else {
+                        console.log('File deleted successfully');
+                    }
+                });
+            }
+        });
     });
 });
 
-// Start the server
 app.listen(port, () => {
     console.log(`Server is listening on port ${port}`);
 });
